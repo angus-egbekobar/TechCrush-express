@@ -34,6 +34,42 @@ app.get('/user', (req, res) => {
     email: 'johndoe@example.com' });
 });// the render method is used to render a view template. In this case, it renders the 'index' (which is d name of d file u want to render) template and passes an object with username and email to the template.
 
+app.get('/headers', (req, res) => {
+  console.log(req.headers); // Log all request headers to the console
+  console.log(req.get('User-Agent')); // Access a specific header (User-Agent in this case)
+  console.log(req.headers['User-Agent']); // Another way to access the User-Agent header
+  res.set("Custom-Header", "HeaderValue"); // Set a custom header in the response
+
+  /**if(req.headers.api_key !== 'undefined' && req.header.api-key === '12345'){
+    res.status(200).json({ 
+      message: "Valid API Key",
+       email: "contact@example.com",
+       username : "JohnDoe"
+      });
+  }else{
+    res.status(403).json({ message: "Forbidden: Invalid API Key" });
+  }**/
+ //console.log(req.headers['api_key']); // Access the 'api_key' header
+// you can set your own custom headers(key and value) in the request, for example, using Postman or curl.
+  const apiKey = req.headers['api_key']; // Access the 'api_key' header. this api_key was sent from postman
+  if (apiKey && apiKey === '12345') {
+    res.set("server-status","active"); // we can set our own key and value in the response's header using res.set()
+    res.status(200).json({ 
+      message: "Valid API Key",
+      email: "contact@example.com",
+      username : "JohnDoe"
+    });
+  } else {
+    res.set("server-status","not active");
+    res.status(403).json({ message: "Forbidden: Invalid API Key" });
+  }
+  
+});
+
+app.get('/search', (req, res) =>{
+  //console.log(req.query); // Log all query parameters to the console.These parameters are sent in the URL after the '?' symbol.The URL can be postman
+  const {name,age, sex,track} = req.query // Destructure specific query parameters
+})
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
