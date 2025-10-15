@@ -8,6 +8,11 @@
 //http://localhost:3000 // to access the server in the browser
 import express from 'express';
 import aboutRoute from './routes/about.js'; // 
+import multer from 'multer'; // Multer is a middleware for handling multipart/form-data, which is primarily used for uploading files. It makes it easy to handle file uploads in your Express applications.
+import  fs from 'node:fs'; // fs module provides an API for interacting with the file system in a manner closely modeled around standard POSIX functions.
+import checkAuth from './customized-middleware/auth.js'; // Import the custom authentication middleware
+import authenticate from './customized-middleware/authenticate.js'; // Import the custom authentication middleware
+
 
 
 const app = express(); // Create an Express app. App is an instance of express which contains methods for routing HTTP requests, configuring middleware, rendering HTML views, registering a template engine, and more.This line of code parses our json on line 76
@@ -17,6 +22,34 @@ app.set('views', './routes/views'); // Set the directory where the view template
 
 app.use(express.json()); //Express will not parse json directly and that is why u need the middleware  to parse JSON request bodies. This allows you to access the request body as req.body in your route handlers.The line of code it is parsing is on line 76
 app.use(express.urlencoded({ extended: true })); // Middleware to parse URL-encoded request bodies (e.g., form submissions). The extended: true option allows for rich objects and arrays to be encoded into the URL-encoded format, using the qs library.
+
+//the diskStorage () is a method provided by multer to configure how and where the uploaded files should be stored.
+//it takes an object with two properties: destination and filename.
+// destination is a function that specifies the folder where the uploaded files will be stored. it takes three arguments: the request object (req), the file object (file), and a callback function (cb).
+// filename is a function that specifies the name of the file within the destination folder.It takes the same three arguments as destination.
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    
+
+    // Check if the 'uploads' directory exists
+    if (!fs.existsSync('./uploads')) {
+      fs.mkdirSync('./uploads'); // Create the directory if it doesn't exist
+    }
+
+    // Pass the directory to Multer
+    cb(null, './uploads'); // Ensure the 'uploads' directory exists in your project root
+  },
+  filename: (req, file, cb) => {
+    // Use 'file', not 'image'
+    cb(null, Date.now() + '-' + file.originalname);
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 1 * 1024 * 1024 }, // Limit file size to 1MB
+});
+
 
 // Root route
 app.get('/', (req, res) => {
@@ -55,7 +88,7 @@ app.get('/headers', (req, res) => {
  //console.log(req.headers['api_key']); // Access the 'api_key' header
 // you can set your own custom headers(key and value) in the request, for example, using Postman or curl.
   const apiKey = req.headers['api_key']; // Access the 'api_key' header. this api_key was sent from postman
-  if (apiKey && apiKey === '12345') {
+  if (apiKey && apiKey === '12345') {  // Check if apiKey exists and matches the expected value '12345'
     res.set("server-status","active"); // we can set our own key and value in the response's header using res.set()
     res.status(200).json({ 
       message: "Valid API Key",
@@ -98,50 +131,26 @@ app.post('/submit-form',(req,res) => { // the middleware express.urlencoded() on
   res.send(`Form submitted successfully by : Username: ${username}, Email: ${email}, Password: ${password} `); // Send a response back to the client
 })
 
-// customized  middleware function to check for an 'api_key' header in the request
-const checkAuth = (req, res, next) => {
-  if(req.headers['api_key'] && req.headers.api_key === '12345') { // Check if the 'api_key' header is present and valid
-    next(); // Call the next middleware or route handler . This is important to pass control to the next function in the stack.
-  }else{
-    res.status(401).json({ message: "Unauthorized: Invalid or missing API Key" }); // Send a 401 Unauthorized response if the API key is invalid or missing
-  }
-}
+
 
 app.get('/protected', checkAuth, (req, res) => {  // Use the checkAuth middleware for this route to protect it
   res.send('You have accessed to a protected route');
 })
 
-//Another example for Custom Authentication Middleware 
-// This middleware checks if the request has a valid token in the headers
-const  authenticate = (req, res, next) => {
-  // Extract token from Authorization header (e.g., "Bearer <token>")
-  const authHeader = req.headers['validToken']; // this validToken was sent from postman
-
-  // The below line of code safely extracts the token from the header string.
-// It first checks if 'authHeader' exists (i.e., is not undefined or null).
-// If it does, it splits the string by a space (e.g., "Bearer mysecrettoken123" becomes ["Bearer", "mysecrettoken123"])
-// Then it grabs the second part (index 1), which is the actual token.
-// If 'authHeader' is missing, the whole expression evaluates to undefined to avoid runtime errors.
-  const token = authHeader && authHeader.split(' ')[1]; // Get the token part after "Bearer "
-
-  // If no token is found, deny access
-  if (!token) {
-    return res.status(401).json({ message: 'Access denied. No token provided.' });
-  }
-
-  // Here you would normally verify the token (e.g., using JWT
-
-  if (token !== validToken) {
-    return res.status(403).json({ message: 'Invalid token. Access forbidden.' });
-  }
-
-  // If token is valid, pass control to the next middleware or route
-  next();
-};
 
 app.get('/dashboard', authenticate, (req, res) => { // Use the authenticate middleware for this route to protect it 
   res.send('Welcome to your dashboard!.You are authenticated.');
 });
+
+app.post('/upload', upload.single('file'), (req, res) => { // Use the multer middleware to handle file upload. 'profilePic' is the name of the form field that contains the file.
+  // Access the uploaded file via req.file
+  console.log(req.file); // Log the file information to the console 
+  res.send(`file uploaded successfully: ${req.file.filename}`); // Send a response back to the client with the filename
+});
+
+
+
+
 // Start the server
 app.listen(PORT, () => {
   console.log('Server running on http://localhost:3000');
