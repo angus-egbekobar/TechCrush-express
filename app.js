@@ -1,3 +1,4 @@
+//https://expressjs.com/en/api.html
 //npm install -y
 //npm install express
 //npm install nodemon --save-dev
@@ -12,17 +13,20 @@ import multer from 'multer'; // Multer is a middleware for handling multipart/fo
 import  fs from 'node:fs'; // fs module provides an API for interacting with the file system in a manner closely modeled around standard POSIX functions.
 import checkAuth from './customized-middleware/auth.js'; // Import the custom authentication middleware
 import authenticate from './customized-middleware/authenticate.js'; // Import the custom authentication middleware
-
-
+import cookieParser from 'cookie-parser';
+import {body, validationResult} from 'express-validator'; // express-validator is a set of express.js middlewares that wraps validator.js, a library for string validators and sanitizers.  
 
 const app = express(); // Create an Express app. App is an instance of express which contains methods for routing HTTP requests, configuring middleware, rendering HTML views, registering a template engine, and more.This line of code parses our json on line 76
 const PORT = 3000;
 app.set('view engine', 'ejs'); // Set EJS as the templating engine. This allows you to render .ejs files located in the "views" directory by default.
 app.set('views', './routes/views'); // Set the directory where the view templates are located. In this case, it's set to './routes/views'.
 
+//MIDDLEWARES IN EXPRESS JS
 app.use(express.json()); //Express will not parse json directly and that is why u need the middleware  to parse JSON request bodies. This allows you to access the request body as req.body in your route handlers.The line of code it is parsing is on line 76
 app.use(express.urlencoded({ extended: true })); // Middleware to parse URL-encoded request bodies (e.g., form submissions). The extended: true option allows for rich objects and arrays to be encoded into the URL-encoded format, using the qs library.
+app.use(cookieParser()); // Middleware to parse cookies attached to the client request object. After this middleware is used, you can access cookies via req.cookies.
 
+//FILE UPLOADS WITH MULTER
 //the diskStorage () is a method provided by multer to configure how and where the uploaded files should be stored.
 //it takes an object with two properties: destination and filename.
 // destination is a function that specifies the folder where the uploaded files will be stored. it takes three arguments: the request object (req), the file object (file), and a callback function (cb).
@@ -102,13 +106,16 @@ app.get('/headers', (req, res) => {
   
 });
 
+//HANDLING QUERY STRINGS
 app.get('/search', (req, res) =>{
   //console.log(req.query); // Log all query parameters to the console.These parameters are sent in the URL after the '?' symbol.The URL can be postman
   const {name,age, sex,track} = req.query // Destructure specific query parameters
   res.send(`You searched for : ${name} , ${age} , ${sex} , ${track}`)
 })
 
-app.post('/json-data',(req,res) =>{ // the middleware express.json() on line 18 is used to parse JSON request bodies
+
+//HANDLING JSON OBJECTS IN THE REQUEST BODY
+app.post('/json-data',(req,res) =>{ // the middleware express.json() above is used to parse JSON request bodies
   // Access the JSON data sent in the request body
   console.log(req.body); // Log the JSON data to the console
   const {username, email, password} = req.body; // Destructure specific fields from the JSON data
@@ -122,6 +129,7 @@ app.post('/json-data',(req,res) =>{ // the middleware express.json() on line 18 
 })
 })
 
+//HANDLING FORMS/POST REQUEST WITH URL-ENCODED DATA
 app.post('/submit-form',(req,res) => { // the middleware express.urlencoded() on line 19 is used to parse URL-encoded request bodies (e.g., form submissions)
   // Access the form data sent in the request body
   console.log(req)  // Log the entire request object to the console
@@ -149,9 +157,63 @@ app.post('/upload', upload.single('file'), (req, res) => { // Use the multer mid
 });
 
 
+//HANDLING PARAMS IN EXPRESS
+app.get('/user/:userId/:action', (req, res) => {
+  console.log(req.params)
+  const { userId, action } = req.params;
+  res.send(`User ID: ${userId}, Action: ${action}`);
+});
 
 
+//https://rehmat-sayany.medium.com/the-power-and-pitfalls-of-cookies-in-web-development-with-express-js-e7372646c532
+// you can set cookies from your backend
+app.get('/set-cookie', (req, res) => { // Route to set a cookie
+  // Set a cookie named 'theme' with a value of 'dark' that expires in 1 hour
+  res.cookie('theme', 'dark', { maxAge: 3600000, httpOnly: true }); // httpOnly flag helps mitigate the risk of client side script accessing the protected cookie
+  res.send('Cookie has been set'); // 
+});
+
+// you can also get cookies from your backend
+app.get('/get-cookie', (req, res) => {
+  // Access cookies from the request
+  const theme = req.cookies['theme'];
+  res.send(`cookie theme: ${theme}`);
+} );
+
+
+
+
+//EXPRESS VALIDATOR
+app.post('/signup',// 1st param: path (string)
+   // Validate and sanitize input fields
+  // the body() function is used to validate and sanitize the input fields in the request body and it is an array of middlewares 
+  //app.post(path, middleware1, middleware2, middleware3, ..., finalHandler) 
+//path middleware middleware ... callback function(request and response objects)
+//If you prefer, you can put all middleware in an array like our example below
+  [
+    body('username').        // 2nd param: middleware function
+    isLength({ min: 5 }).     // 3rd param: middleware function  
+    withMessage('Username must be at least 5 characters long'). // 4th param: middleware function  
+    trim().     // 5th param: middleware function  
+    escape(),  // 6th param: middleware function all chained to body('username') using dot(.) notation 
+  body('email'). // selects the email field from the request body
+        isEmail().// check if the email is valid
+        isLength({ max: 50 }).// check if email length is less than or equal to 50 characters
+        withMessage('Invalid email format'). // custom  error message if email is invalid
+        normalizeEmail(), // sanitize the email
+  body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters long').matches(/\d/).withMessage('Password must contain a number'),
+], (req, res) => { //  last  param: final handler function
+  // Handle validation results
+  const errors = validationResult(req);  // a method that checks and  collects the validation errors that were gathered by the previous middleware functions (the ones created using body()).it checks the request object (req) for any validation errors.
+  if (!errors.isEmpty()) { // If there are validation errors
+    return res.status(400).json({ errors: errors.array() }); // Send a 400 Bad Request response with the array of errors
+  }
+  const { username, email, password } = req.body;
+  // Proceed with user registration logic (e.g., save to database)
+  res.send(`sign up successful for ${email}`); // Send a success response
+
+})
 // Start the server
 app.listen(PORT, () => {
   console.log('Server running on http://localhost:3000');
-});
+})
